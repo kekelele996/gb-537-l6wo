@@ -1,11 +1,11 @@
 import type { Actor, Role } from '../types/auth'
 
-export type Permission = 'anchor.write' | 'chain.write' | 'dependency.write' | 'scenario.write' | 'scenario.run' | 'scenario.verify' | 'audit.read'
+export type Permission = 'anchor.write' | 'chain.write' | 'dependency.write' | 'scenario.write' | 'scenario.run' | 'scenario.risk_signoff' | 'scenario.verify' | 'audit.read'
 
 const permissions: Record<Role, Permission[]> = {
   admin: ['anchor.write', 'chain.write', 'dependency.write', 'scenario.write', 'scenario.run', 'scenario.verify', 'audit.read'],
   pki_operator: ['anchor.write', 'chain.write', 'dependency.write', 'scenario.write', 'scenario.run'],
-  service_owner: ['dependency.write', 'scenario.write', 'scenario.run'],
+  service_owner: ['dependency.write', 'scenario.write', 'scenario.run', 'scenario.risk_signoff'],
   security_reviewer: ['scenario.verify', 'audit.read'],
   auditor: ['audit.read'],
 }

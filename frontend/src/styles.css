@@ -232,6 +232,21 @@ button, input, textarea, select { letter-spacing: 0; }
 .broken-paths strong { margin-top: 5px; color: #853935; font-size: .73rem; overflow-wrap: anywhere; }
 .broken-paths p { margin-top: 4px; color: #725a57; font-size: .67rem; line-height: 1.45; }
 .broken-paths .no-broken-paths { display: flex; align-items: center; gap: 7px; border-color: #b8cec2; background: #e8f0eb; color: var(--green); font-size: .75rem; }
+.risk-signoff-panel { margin-top: 16px; border: 1px solid var(--mineral-3); background: #f5f7f4; }
+.risk-signoff-panel .detail-section-head { margin: 0; padding: 13px 14px; }
+.risk-signoff-list { display: flex; flex-direction: column; }
+.risk-signoff-row { display: flex; align-items: center; justify-content: space-between; gap: 13px; padding: 12px 14px; border-top: 1px solid #d9ded9; }
+.risk-signoff-row.is-signed { background: #e9f1ec; }
+.risk-signoff-row.is-invalid { background: #f5e7e5; }
+.risk-signoff-row > div:first-child { min-width: 0; }
+.risk-signoff-row strong, .risk-signoff-row span, .risk-signoff-row small { display: block; }
+.risk-signoff-row strong { font-size: .77rem; }
+.risk-signoff-row > div:first-child > span { margin-top: 3px; color: #68756f; font-size: .65rem; }
+.risk-signoff-row small { margin-top: 4px; color: #7b5c49; font-size: .65rem; line-height: 1.4; }
+.risk-signoff-row.is-signed small { color: #476658; }
+.risk-signoff-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex: 0 0 auto; }
+.risk-signoff-empty { display: flex; align-items: center; gap: 8px; padding: 13px 14px; border-top: 1px solid #d9ded9; color: var(--green); font-size: .73rem; }
+.risk-signoff-panel .MuiAlert-root { border-bottom: 1px solid #d2a39f; }
 
 .audit-register { border: 1px solid var(--mineral-3); background: var(--mineral-0); }
 .audit-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 15px; min-height: 67px; padding: 12px 15px; border-bottom: 1px solid var(--mineral-3); }
@@ -375,6 +390,8 @@ button, input, textarea, select { letter-spacing: 0; }
   .scenario-evidence-grid > div { min-height: 68px; border-right: 0; border-bottom: 1px solid var(--mineral-3); }
   .scenario-evidence-grid > div:last-child { border-bottom: 0; }
   .scenario-toolbar .MuiButton-root { width: 100%; }
+  .risk-signoff-row { align-items: flex-start; flex-direction: column; }
+  .risk-signoff-actions { justify-content: flex-start; flex-wrap: wrap; }
   .form-grid { grid-template-columns: 1fr; }
   .drawer-header { padding: 18px 16px; }
   .drawer-body { padding: 18px 16px 28px; }

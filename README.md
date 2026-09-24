@@ -23,7 +23,8 @@ Open `http://127.0.0.1:18537`. The application is decision support only: it does
 | --- | --- | --- | --- |
 | PKI administrator | `admin` | `admin123` | Full administration and verification |
 | PKI operator | `operator` | `operator123` | Trust material, chains, dependencies, and simulations |
-| Service owner | `owner` | `owner123` | Team-scoped dependency and scenario work |
+| PKI service owner | `platform-owner` | `platform123` | Risk signoff for PKI Platform critical services |
+| Service owner | `owner` | `owner123` | Team-scoped dependency and scenario work; risk signoff for Payments Platform |
 | Security reviewer | `reviewer` | `reviewer123` | Independent scenario verification and audit access |
 | Auditor | `auditor` | `auditor123` | Read-only audit access |
 
@@ -51,7 +52,7 @@ The principal model is `TrustAnchor -> CertificateChain -> DependentService -> d
 | `/rollovers` | `/rollover-scenarios` and all core resources | Run, compare, replay, and transition frozen simulations |
 | `/audit` | `/audit-logs` and entity projections | Filter audit evidence by request, actor, entity, and time |
 
-Authentication is available through `POST /api/v1/auth/login`. All write endpoints produce an audit record. Simulation requests require an `Idempotency-Key`; repeated requests with the same key return the stored result.
+Authentication is available through `POST /api/v1/auth/login`. All write endpoints produce an audit record. Simulation requests require an `Idempotency-Key`; repeated requests with the same key return the stored result. Critical-service risk acknowledgements use `POST /api/v1/rollover-scenarios/:id/risk-signoffs` and are restricted to the responsible team's service owner.
 
 ## State and safety rules
 
@@ -67,7 +68,7 @@ Authentication is available through `POST /api/v1/auth/login`. All write endpoin
 - backend DTOs, services, routers, and state-machine tests
 - `frontend/src/types/enums/scenario-state.ts`, stores, state badges, and rollover page
 
-Valid scenario transitions are `draft -> simulated -> ready -> executing -> verified`, `executing -> rollback`, and `simulated/ready -> draft`. Invalid transitions return `409`; a creator attempting to verify their own scenario receives `409 REVIEWER_SEPARATION_REQUIRED`. Authorization failures return `403`, and unauthenticated requests return `401`.
+Valid scenario transitions are `draft -> simulated -> ready -> executing -> verified`, `executing -> rollback`, and `simulated/ready -> draft`. Invalid transitions return `409`; a creator attempting to verify their own scenario receives `409 REVIEWER_SEPARATION_REQUIRED`. Before a simulated scenario can become `ready`, every affected service with `criticality = critical` must have one risk signoff from an active `service_owner` on that service's current owner team. Signoffs bind to the frozen `input_hash`; duplicate submissions for the same scenario and service replace that one record. Missing a critical-service signoff, signing for another team, or changing the frozen input rejects the move to `ready`. The rollover page lists pending/invalid services and the invalidation reason. Authorization failures return `403`, and unauthenticated requests return `401`.
 
 ## Configuration and ports
 

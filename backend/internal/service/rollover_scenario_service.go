@@ -22,12 +22,14 @@ type RolloverScenarioService struct {
 	chains       repository.CertificateChainRepository
 	services     repository.DependentServiceRepository
 	audits       repository.AuditRepository
+	signoffs     repository.RiskSignoffRepository
+	users        repository.UserRepository
 	transactions repository.TransactionManager
 	now          func() time.Time
 }
 
-func NewRolloverScenarioService(scenarios repository.RolloverScenarioRepository, anchors repository.TrustAnchorRepository, chains repository.CertificateChainRepository, services repository.DependentServiceRepository, audits repository.AuditRepository, transactions repository.TransactionManager) *RolloverScenarioService {
-	return &RolloverScenarioService{scenarios: scenarios, anchors: anchors, chains: chains, services: services, audits: audits, transactions: transactions, now: func() time.Time { return time.Now().UTC() }}
+func NewRolloverScenarioService(scenarios repository.RolloverScenarioRepository, anchors repository.TrustAnchorRepository, chains repository.CertificateChainRepository, services repository.DependentServiceRepository, audits repository.AuditRepository, signoffs repository.RiskSignoffRepository, users repository.UserRepository, transactions repository.TransactionManager) *RolloverScenarioService {
+	return &RolloverScenarioService{scenarios: scenarios, anchors: anchors, chains: chains, services: services, audits: audits, signoffs: signoffs, users: users, transactions: transactions, now: func() time.Time { return time.Now().UTC() }}
 }
 
 func requireScenarioOwnership(actor util.Actor, scenario model.RolloverScenario) error {
@@ -63,6 +65,9 @@ func (s *RolloverScenarioService) Create(ctx context.Context, request dto.Create
 	}
 	snapshot, err := buildSnapshot(request.Name, request.OldAnchorID, request.NewAnchorID, request.OverlapStart, request.OverlapEnd, request.SimulationTime, candidateIDs, anchors, allChains, allServices)
 	if err != nil {
+		return dto.RolloverScenarioResponse{}, util.WrapError(http.StatusUnprocessableEntity, util.CodeValidation, "rollover input is invalid", err)
+	}
+	if err := algorithm.ValidateSnapshot(snapshot); err != nil {
 		return dto.RolloverScenarioResponse{}, util.WrapError(http.StatusUnprocessableEntity, util.CodeValidation, "rollover input is invalid", err)
 	}
 	inputHash, err := snapshot.Hash()
@@ -159,7 +164,11 @@ func (s *RolloverScenarioService) Get(ctx context.Context, id uint) (dto.Rollove
 		}
 		return dto.RolloverScenarioResponse{}, util.WrapError(http.StatusInternalServerError, util.CodeInternal, "unable to load rollover scenario", err)
 	}
-	return dto.NewRolloverScenarioResponse(scenario, s.now()), nil
+	data, err := s.risks(ctx, []model.RolloverScenario{scenario})
+	if err != nil {
+		return dto.RolloverScenarioResponse{}, err
+	}
+	return s.responseWithRisk(scenario, data[scenario.ID]), nil
 }
 func (s *RolloverScenarioService) List(ctx context.Context, query dto.RolloverScenarioQuery) (dto.RolloverScenarioListResponse, error) {
 	scenarios, total, err := s.scenarios.List(ctx, query)
@@ -167,10 +176,102 @@ func (s *RolloverScenarioService) List(ctx context.Context, query dto.RolloverSc
 		return dto.RolloverScenarioListResponse{}, util.WrapError(http.StatusInternalServerError, util.CodeInternal, "unable to list rollover scenarios", err)
 	}
 	response := dto.RolloverScenarioListResponse{Items: make([]dto.RolloverScenarioResponse, 0, len(scenarios)), Total: total, Page: query.Page, Size: query.PageSize}
+	riskByScenario, err := s.risks(ctx, scenarios)
+	if err != nil {
+		return dto.RolloverScenarioListResponse{}, err
+	}
 	for _, scenario := range scenarios {
-		response.Items = append(response.Items, dto.NewRolloverScenarioResponse(scenario, s.now()))
+		response.Items = append(response.Items, s.responseWithRisk(scenario, riskByScenario[scenario.ID]))
 	}
 	return response, nil
+}
+
+type scenarioRiskData struct {
+	summary         dto.RiskSignoffSummary
+	affected        []algorithm.AffectedService
+	currentHash     string
+	currentServices []model.DependentService
+}
+
+func (s *RolloverScenarioService) responseWithRisk(scenario model.RolloverScenario, data *scenarioRiskData) dto.RolloverScenarioResponse {
+	response := dto.NewRolloverScenarioResponse(scenario, s.now())
+	if data != nil {
+		response.RiskSignoffs = data.summary
+	}
+	return response
+}
+
+func (s *RolloverScenarioService) risks(ctx context.Context, scenarios []model.RolloverScenario) (map[uint]*scenarioRiskData, error) {
+	result := map[uint]*scenarioRiskData{}
+	if len(scenarios) == 0 {
+		return result, nil
+	}
+	allServices, err := s.services.All(ctx)
+	if err != nil {
+		return nil, util.WrapError(http.StatusInternalServerError, util.CodeInternal, "unable to load current dependency graph", err)
+	}
+	allChains, _, err := s.chains.List(ctx, dto.CertificateChainQuery{Page: 1, PageSize: 200})
+	if err != nil {
+		return nil, util.WrapError(http.StatusInternalServerError, util.CodeInternal, "unable to load current certificate chains", err)
+	}
+	anchorIDSet := map[uint]bool{}
+	for _, chain := range allChains {
+		anchorIDSet[chain.TrustAnchorID] = true
+	}
+	for _, scenario := range scenarios {
+		anchorIDSet[scenario.OldAnchorID] = true
+		anchorIDSet[scenario.NewAnchorID] = true
+	}
+	anchorIDs := make([]uint, 0, len(anchorIDSet))
+	for id := range anchorIDSet {
+		anchorIDs = append(anchorIDs, id)
+	}
+	allAnchors, err := s.anchors.GetByIDs(ctx, anchorIDs)
+	if err != nil {
+		return nil, util.WrapError(http.StatusInternalServerError, util.CodeInternal, "unable to load current trust anchors", err)
+	}
+	scenarioIDs := make([]uint, 0, len(scenarios))
+	for _, scenario := range scenarios {
+		scenarioIDs = append(scenarioIDs, scenario.ID)
+	}
+	signoffsByScenario, err := s.signoffs.ListByScenarioIDs(ctx, scenarioIDs)
+	if err != nil {
+		return nil, util.WrapError(http.StatusInternalServerError, util.CodeInternal, "unable to load risk signoffs", err)
+	}
+	for _, scenario := range scenarios {
+		snapshot, snapshotErr := buildSnapshot(scenario.Name, scenario.OldAnchorID, scenario.NewAnchorID, scenario.OverlapStart, scenario.OverlapEnd, scenario.SimulationTime, mustUintList(scenario.CandidateChainIDs), allAnchors, allChains, allServices)
+		currentHash := ""
+		if snapshotErr == nil {
+			currentHash, _ = snapshot.Hash()
+		}
+		affected := []algorithm.AffectedService{}
+		_ = json.Unmarshal([]byte(scenario.AffectedServicesJSON), &affected)
+		summary := dto.BuildRiskSignoffSummary(scenario, affected, allServices, signoffsByScenario[scenario.ID], currentHash)
+		result[scenario.ID] = &scenarioRiskData{summary: summary, affected: affected, currentHash: currentHash, currentServices: allServices}
+	}
+	return result, nil
+}
+
+func mustUintList(raw string) []uint {
+	values := []uint{}
+	_ = json.Unmarshal([]byte(raw), &values)
+	return values
+}
+
+func riskReadinessFailure(summary dto.RiskSignoffSummary) string {
+	if summary.InputChanged {
+		return "frozen input has changed; rerun the simulation before requesting risk signoff"
+	}
+	missing := []string{}
+	for _, requirement := range summary.Requirements {
+		if requirement.Status != "signed" {
+			missing = append(missing, requirement.ServiceCode+"："+requirement.InvalidReason)
+		}
+	}
+	if len(missing) != 0 {
+		return "critical affected services have not signed the risk: " + strings.Join(missing, "; ")
+	}
+	return ""
 }
 func (s *RolloverScenarioService) Transition(ctx context.Context, id uint, request dto.RolloverScenarioTransitionRequest, actor util.Actor, requestID string) (dto.RolloverScenarioResponse, error) {
 	if err := validateRequest(request); err != nil {
@@ -191,6 +292,15 @@ func (s *RolloverScenarioService) Transition(ctx context.Context, id uint, reque
 	}
 	if to == constants.ScenarioVerified && !scenario.ReviewerSeparated(actor.UserID) {
 		return dto.RolloverScenarioResponse{}, util.NewError(http.StatusConflict, util.CodeReviewerConflict, "scenario creator cannot verify their own simulation")
+	}
+	if to == constants.ScenarioReady || to == constants.ScenarioExecuting {
+		riskData, riskErr := s.risks(ctx, []model.RolloverScenario{scenario})
+		if riskErr != nil {
+			return dto.RolloverScenarioResponse{}, riskErr
+		}
+		if reason := riskReadinessFailure(riskData[id].summary); reason != "" {
+			return dto.RolloverScenarioResponse{}, util.NewError(http.StatusConflict, util.CodeStateTransition, reason)
+		}
 	}
 	updates := map[string]any{}
 	if to == constants.ScenarioVerified {
@@ -260,6 +370,77 @@ func (s *RolloverScenarioService) Replay(ctx context.Context, id uint, actor uti
 	}
 	if !passed {
 		return dto.RolloverScenarioResponse{}, util.NewError(http.StatusConflict, util.CodeConflict, "replay differs from frozen historical result")
+	}
+	return s.Get(ctx, id)
+}
+func (s *RolloverScenarioService) SignRisk(ctx context.Context, id uint, request dto.RiskSignoffRequest, actor util.Actor, requestID string) (dto.RolloverScenarioResponse, error) {
+	if err := validateRequest(request); err != nil {
+		return dto.RolloverScenarioResponse{}, err
+	}
+	scenario, err := s.scenarios.GetByID(ctx, id, false)
+	if err != nil {
+		return dto.RolloverScenarioResponse{}, util.NotFound("rollover scenario")
+	}
+	if scenario.ScenarioState != string(constants.ScenarioSimulated) && scenario.ScenarioState != string(constants.ScenarioReady) {
+		return dto.RolloverScenarioResponse{}, util.NewError(http.StatusConflict, util.CodeStateTransition, "risk can be signed only after the simulation is stored")
+	}
+	user, err := s.users.GetByID(ctx, actor.UserID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return dto.RolloverScenarioResponse{}, util.NewError(http.StatusForbidden, util.CodeForbidden, "risk signoff owner was not found")
+		}
+		return dto.RolloverScenarioResponse{}, util.WrapError(http.StatusInternalServerError, util.CodeInternal, "unable to verify risk signoff owner", err)
+	}
+	if !user.Active || user.Role != string(constants.RoleServiceOwner) {
+		return dto.RolloverScenarioResponse{}, util.NewError(http.StatusForbidden, util.CodeForbidden, "only an active service team owner can sign risk")
+	}
+	riskData, err := s.risks(ctx, []model.RolloverScenario{scenario})
+	if err != nil {
+		return dto.RolloverScenarioResponse{}, err
+	}
+	data := riskData[id]
+	if data.currentHash != scenario.InputHash {
+		return dto.RolloverScenarioResponse{}, util.NewError(http.StatusConflict, util.CodeStateTransition, "frozen input has changed; rerun the simulation before signing risk")
+	}
+	var requirement *dto.CriticalServiceRequirement
+	for index := range data.summary.Requirements {
+		if data.summary.Requirements[index].ServiceID == request.ServiceID {
+			requirement = &data.summary.Requirements[index]
+			break
+		}
+	}
+	if requirement == nil {
+		return dto.RolloverScenarioResponse{}, util.NewError(http.StatusNotFound, util.CodeNotFound, "service is not a critical service affected by this scenario")
+	}
+	var current *model.DependentService
+	for index := range data.currentServices {
+		if data.currentServices[index].ID == request.ServiceID {
+			current = &data.currentServices[index]
+			break
+		}
+	}
+	if current == nil {
+		return dto.RolloverScenarioResponse{}, util.NewError(http.StatusConflict, util.CodeStateTransition, "current service register does not contain this critical service")
+	}
+	if current.ServiceState != string(constants.ServiceActive) {
+		return dto.RolloverScenarioResponse{}, util.NewError(http.StatusConflict, util.CodeStateTransition, "inactive critical service requires a new frozen simulation")
+	}
+	if user.Team != current.OwnerTeam || current.OwnerTeam != requirement.OwnerTeam {
+		return dto.RolloverScenarioResponse{}, util.NewError(http.StatusForbidden, util.CodeForbidden, "only the owning team's service owner can sign this risk")
+	}
+	comment := strings.TrimSpace(request.Comment)
+	if comment == "" {
+		comment = "团队负责人确认并签收该轮换风险。"
+	}
+	signoff := model.ScenarioRiskSignoff{ScenarioID: scenario.ID, ServiceID: current.ID, ServiceCode: current.ServiceCode, OwnerTeam: current.OwnerTeam, InputHash: scenario.InputHash, SignoffBy: user.ID, SignoffByName: user.Username, Comment: comment}
+	err = s.transactions.WithinTransaction(ctx, func(txCtx context.Context) error {
+		if upsertErr := s.signoffs.Upsert(txCtx, &signoff); upsertErr != nil {
+			return upsertErr
+		}
+		return recordAudit(txCtx, s.audits, actor, requestID, "rollover_risk_signoff", signoff.ID, "sign_risk", nil, signoff, scenario.InputHash, scenario.AlgorithmVersion, &scenario.SimulationTime, 0, comment)
+	})
+	if err != nil {
+		return dto.RolloverScenarioResponse{}, err
 	}
 	return s.Get(ctx, id)
 }

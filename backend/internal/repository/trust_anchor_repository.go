@@ -30,6 +30,7 @@ func scopedDB(ctx context.Context, db *gorm.DB) *gorm.DB {
 
 type UserRepository interface {
 	FindByUsername(context.Context, string) (model.User, error)
+	GetByID(context.Context, uint) (model.User, error)
 }
 type userRepository struct{ db *gorm.DB }
 
@@ -38,6 +39,13 @@ func (r *userRepository) FindByUsername(ctx context.Context, username string) (m
 	var user model.User
 	if err := scopedDB(ctx, r.db).Where("username = ?", username).First(&user).Error; err != nil {
 		return model.User{}, fmt.Errorf("find user by username: %w", err)
+	}
+	return user, nil
+}
+func (r *userRepository) GetByID(ctx context.Context, id uint) (model.User, error) {
+	var user model.User
+	if err := scopedDB(ctx, r.db).First(&user, id).Error; err != nil {
+		return model.User{}, fmt.Errorf("find user %d: %w", id, err)
 	}
 	return user, nil
 }

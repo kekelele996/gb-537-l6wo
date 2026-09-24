@@ -16,6 +16,7 @@ const (
 	PermissionDependencyWrite Permission = "dependency.write"
 	PermissionScenarioWrite   Permission = "scenario.write"
 	PermissionScenarioRun     Permission = "scenario.run"
+	PermissionScenarioSignoff Permission = "scenario.risk_signoff"
 	PermissionScenarioVerify  Permission = "scenario.verify"
 	PermissionAuditRead       Permission = "audit.read"
 )
@@ -23,7 +24,7 @@ const (
 var permissions = map[Role]map[Permission]bool{
 	RoleAdmin:            {PermissionRead: true, PermissionAnchorWrite: true, PermissionChainWrite: true, PermissionDependencyWrite: true, PermissionScenarioWrite: true, PermissionScenarioRun: true, PermissionScenarioVerify: true, PermissionAuditRead: true},
 	RolePKIOperator:      {PermissionRead: true, PermissionAnchorWrite: true, PermissionChainWrite: true, PermissionDependencyWrite: true, PermissionScenarioWrite: true, PermissionScenarioRun: true},
-	RoleServiceOwner:     {PermissionRead: true, PermissionDependencyWrite: true, PermissionScenarioWrite: true, PermissionScenarioRun: true},
+	RoleServiceOwner:     {PermissionRead: true, PermissionDependencyWrite: true, PermissionScenarioWrite: true, PermissionScenarioRun: true, PermissionScenarioSignoff: true},
 	RoleSecurityReviewer: {PermissionRead: true, PermissionScenarioVerify: true, PermissionAuditRead: true},
 	RoleAuditor:          {PermissionRead: true, PermissionAuditRead: true},
 }

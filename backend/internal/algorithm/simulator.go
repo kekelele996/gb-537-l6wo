@@ -33,6 +33,8 @@ type ChainSnapshot struct {
 type ServiceSnapshot struct {
 	ID             uint   `json:"id"`
 	Code           string `json:"code"`
+	Name           string `json:"name"`
+	OwnerTeam      string `json:"owner_team"`
 	ChainID        uint   `json:"chain_id"`
 	TrustAnchorIDs []uint `json:"trust_anchor_ids"`
 	DependencyIDs  []uint `json:"dependency_ids"`
@@ -59,6 +61,8 @@ type Snapshot struct {
 type AffectedService struct {
 	ServiceID   uint      `json:"service_id"`
 	ServiceCode string    `json:"service_code"`
+	ServiceName string    `json:"service_name"`
+	OwnerTeam   string    `json:"owner_team"`
 	Criticality string    `json:"criticality"`
 	At          time.Time `json:"at"`
 	Reason      string    `json:"reason"`
@@ -181,7 +185,7 @@ func Simulate(snapshot Snapshot) (Result, error) {
 			item, path := resolveService(service.ID, direct, serviceByID, map[uint]bool{}, nil)
 			evidence.Services = append(evidence.Services, item)
 			if !item.Reachable {
-				result.AffectedServices = append(result.AffectedServices, AffectedService{ServiceID: service.ID, ServiceCode: service.Code, Criticality: service.Criticality, At: at, Reason: item.Reason})
+				result.AffectedServices = append(result.AffectedServices, AffectedService{ServiceID: service.ID, ServiceCode: service.Code, ServiceName: service.Name, OwnerTeam: service.OwnerTeam, Criticality: service.Criticality, At: at, Reason: item.Reason})
 				codes := make([]string, 0, len(path))
 				for _, id := range path {
 					if entry, ok := serviceByID[id]; ok {

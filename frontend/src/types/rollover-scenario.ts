@@ -9,6 +9,8 @@ export interface AffectedService {
   not_after?: string
   service_id?: number
   service_code?: string
+  service_name?: string
+  owner_team?: string
   criticality?: string
   at?: string
   reason?: string
@@ -35,6 +37,41 @@ export interface TimepointEvidence {
   services: ServiceEvidence[]
 }
 
+export interface RiskSignoff {
+  id: number
+  scenario_id: number
+  service_id: number
+  service_code: string
+  owner_team: string
+  input_hash: string
+  signoff_by: number
+  signoff_by_name: string
+  comment: string
+  created_at: string
+  updated_at: string
+}
+
+export interface CriticalServiceRequirement {
+  service_id: number
+  service_code: string
+  service_name: string
+  owner_team: string
+  criticality: string
+  current_team: string
+  status: 'pending' | 'signed' | 'invalid'
+  invalid_reason?: string
+  signoff?: RiskSignoff
+}
+
+export interface RiskSignoffSummary {
+  required_count: number
+  signed_count: number
+  ready: boolean
+  current_hash: string
+  input_changed: boolean
+  requirements: CriticalServiceRequirement[]
+}
+
 export interface RolloverScenario {
   id: number
   name: string
@@ -52,6 +89,7 @@ export interface RolloverScenario {
   broken_paths_json: BrokenPath[]
   path_evidence_json: TimepointEvidence[]
   scenario_state: ScenarioState
+  risk_signoffs: RiskSignoffSummary
   explanation: string
   created_by: number
   created_by_name: string
@@ -62,6 +100,11 @@ export interface RolloverScenario {
   rollback_record: string
   created_at: string
   updated_at: string
+}
+
+export interface RiskSignoffInput {
+  service_id: number
+  comment?: string
 }
 
 export interface CreateRolloverScenarioInput {

@@ -131,11 +131,8 @@ func buildSnapshot(name string, oldAnchorID, newAnchorID uint, overlapStart, ove
 		if err != nil {
 			return algorithm.Snapshot{}, err
 		}
-		serviceSnapshots = append(serviceSnapshots, algorithm.ServiceSnapshot{ID: service.ID, Code: service.ServiceCode, ChainID: service.ChainID, TrustAnchorIDs: trust, DependencyIDs: dependencies, Criticality: service.Criticality, State: service.ServiceState})
+		serviceSnapshots = append(serviceSnapshots, algorithm.ServiceSnapshot{ID: service.ID, Code: service.ServiceCode, Name: service.Name, OwnerTeam: service.OwnerTeam, ChainID: service.ChainID, TrustAnchorIDs: trust, DependencyIDs: dependencies, Criticality: service.Criticality, State: service.ServiceState})
 	}
 	snapshot := algorithm.NewSnapshot(algorithm.ScenarioConfig{Name: name, OldAnchorID: oldAnchorID, NewAnchorID: newAnchorID, OverlapStart: overlapStart.UTC(), OverlapEnd: overlapEnd.UTC(), CandidateChainIDs: candidateIDs, SimulationTime: simulationTime.UTC()}, anchorSnapshots, chainSnapshots, serviceSnapshots)
-	if err := algorithm.ValidateSnapshot(snapshot); err != nil {
-		return algorithm.Snapshot{}, err
-	}
 	return snapshot, nil
 }
