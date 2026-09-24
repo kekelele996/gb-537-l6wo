@@ -1,4 +1,4 @@
-import { AddRounded, ArrowForwardRounded, AutorenewRounded, FactCheckRounded, KeyboardArrowRightRounded, PlayArrowRounded, RefreshRounded, ReplayRounded, RouteRounded, ScienceRounded } from '@mui/icons-material'
+import { AddRounded, ArrowForwardRounded, AssignmentLateRounded, AutorenewRounded, FactCheckRounded, KeyboardArrowRightRounded, PlayArrowRounded, RefreshRounded, ReplayRounded, RouteRounded, ScienceRounded, TaskAltRounded } from '@mui/icons-material'
 import { Alert, Box, Button, Checkbox, FormControl, IconButton, InputLabel, ListItemText, MenuItem, Select, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Tooltip, Typography } from '@mui/material'
 import { FormEvent, useEffect, useState } from 'react'
 import { errorMessage } from '../api/client'
@@ -34,7 +34,7 @@ const transitionCopy: Partial<Record<ScenarioState, { to: ScenarioState; label: 
 }
 
 export function RolloversPage() {
-  const { items, total, status, error, active, fetchScenarios, createScenario, transition, replay, select } = useRolloverScenarioStore()
+  const { items, total, status, error, active, fetchScenarios, createScenario, signoffRisk, transition, replay, select } = useRolloverScenarioStore()
   const { items: anchors, fetchAnchors } = useTrustAnchorStore()
   const { items: chains, fetchChains } = useCertificateChainStore()
   const { items: services, fetchServices } = useDependentServiceStore()
@@ -75,6 +75,13 @@ export function RolloversPage() {
     try { const updated = await transition(active.id, to); setSuccess(`场景状态已更新为 ${updated.scenario_state}。`) }
     catch (cause) { setFeedback(errorMessage(cause)) } finally { setBusy(false) }
   }
+  const signoffActiveService = async (serviceId: number) => {
+    setBusy(true); setFeedback(''); setSuccess('')
+    try {
+      const updated = await signoffRisk(active!.id, { service_id: serviceId, comment: '已确认该关键服务在当前冻结输入下的轮换风险。' })
+      setSuccess(`风险签收已更新，待签收服务 ${updated.risk_signoffs.pending_service_ids.length} 个。`)
+    } catch (cause) { setFeedback(errorMessage(cause)) } finally { setBusy(false) }
+  }
   const replayActive = async () => {
     if (!active) return; setBusy(true); setFeedback(''); setSuccess('')
     try { const updated = await replay(active.id); setSuccess(updated.replay_verified ? '重放结果与冻结历史证据一致。' : '重放结果不一致。') }
@@ -82,13 +89,15 @@ export function RolloversPage() {
   }
 
   const next = active ? transitionCopy[active.scenario_state] : undefined
-  const canAdvance = next && ((next.to === 'verified' && can('scenario.verify')) || (next.to !== 'verified' && can('scenario.write')))
+  const riskGateOpen = next?.to !== 'ready' || Boolean(active?.risk_signoffs.ready)
+  const canAdvance = next && riskGateOpen && ((next.to === 'verified' && can('scenario.verify')) || (next.to !== 'verified' && can('scenario.write')))
   const reviewerConflict = active?.scenario_state === 'executing' && active.created_by === user?.user_id
+  const riskGateBlocked = next?.to === 'ready' && !riskGateOpen
 
   return <Box className="page-shell rollover-page">
     <PageHeader eyebrow="ROLLOVER REHEARSAL / FROZEN SNAPSHOTS" title="轮换推演" summary="在旧根、新根和交叠窗口的关键时间点重放服务信任路径。executing 仅记录演练步骤，不执行生产变更。" actions={<><Tooltip title="刷新"><IconButton onClick={() => fetchScenarios()} aria-label="刷新轮换推演"><RefreshRounded /></IconButton></Tooltip>{can('scenario.write') && <Button variant="contained" startIcon={<AddRounded />} onClick={openCreate}>新建冻结场景</Button>}</>} />
     <StatStrip items={[{ label: '场景总数', value: total }, { label: '待推演', value: items.filter((item) => item.scenario_state === 'draft').length }, { label: '断裂路径', value: items.reduce((sum, item) => sum + item.broken_paths_json.length, 0), tone: 'is-danger' }, { label: '已独立复核', value: items.filter((item) => item.scenario_state === 'verified').length, tone: 'is-good' }]} />
-    {feedback && <Alert severity="error" onClose={() => setFeedback('')}>{feedback}</Alert>}{success && <Alert severity="success" onClose={() => setSuccess('')}>{success}</Alert>}{reviewerConflict && <Alert severity="warning">当前账号是场景创建者，不能复核自己的推演。请由独立安全复核员完成验证。</Alert>}
+    {feedback && <Alert severity="error" onClose={() => setFeedback('')}>{feedback}</Alert>}{success && <Alert severity="success" onClose={() => setSuccess('')}>{success}</Alert>}{reviewerConflict && <Alert severity="warning">当前账号是场景创建者，不能复核自己的推演。请由独立安全复核员完成验证。</Alert>}{riskGateBlocked && <Alert severity="warning">所有受影响关键服务均需当前团队负责人完成有效风险签收后，场景才能进入待执行。</Alert>}
     <Box className="scenario-layout">
       <section className="scenario-rail">
         <Box className="section-title compact"><Box><Typography className="eyebrow">SCENARIO REGISTER</Typography><Typography variant="h2">冻结场景</Typography></Box><span>{items.length}</span></Box>
@@ -101,6 +110,20 @@ export function RolloversPage() {
           <Box className="anchor-transition"><Box><span>旧信任锚</span><strong>{active.old_anchor?.anchor_code ?? `#${active.old_anchor_id}`}</strong><small>{active.old_anchor?.fingerprint_sha256 && <Fingerprint value={active.old_anchor.fingerprint_sha256} compact />}</small></Box><Box className="transition-axis"><ArrowForwardRounded /><span>{formatDateTime(active.overlap_start)}<br />至 {formatDateTime(active.overlap_end)}</span></Box><Box><span>新信任锚</span><strong>{active.new_anchor?.anchor_code ?? `#${active.new_anchor_id}`}</strong><small>{active.new_anchor?.fingerprint_sha256 && <Fingerprint value={active.new_anchor.fingerprint_sha256} compact />}</small></Box></Box>
           <Box className="scenario-evidence-grid"><Box><Typography className="eyebrow">SIMULATION TIME</Typography><strong>{formatDateTime(active.simulation_time)}</strong><span>耗时 {active.duration_ms} ms</span></Box><Box><Typography className="eyebrow">INPUT HASH</Typography><Fingerprint value={active.input_hash} compact /></Box><Box className={active.broken_paths_json.length ? 'is-risk' : 'is-pass'}><Typography className="eyebrow">BROKEN PATHS</Typography><strong>{active.broken_paths_json.length}</strong><span>{active.affected_services_json.length} 个受影响服务</span></Box></Box>
           <Box className="simulation-explanation"><ScienceRounded /><Typography>{active.explanation}</Typography></Box>
+          {active.risk_signoffs.required && (active.scenario_state === 'simulated' || active.scenario_state === 'ready') && <Box className={`risk-signoff-panel ${active.risk_signoffs.ready ? 'is-complete' : 'is-pending'}`}>
+            <Box className="risk-signoff-head"><Box><Typography className="eyebrow">CRITICAL SERVICE RISK ACCEPTANCE</Typography><Typography variant="h3">关键服务风险签收</Typography><Typography>签收记录绑定当前输入哈希；同一服务重复提交仅保留一条。全部有效签收后才能进入待执行。</Typography></Box>{active.risk_signoffs.ready ? <TaskAltRounded color="success" /> : <AssignmentLateRounded color="warning" />}</Box>
+            {!active.risk_signoffs.ready && <Alert severity="warning">缺少有效签收或签收已失效，场景不能进入待执行。</Alert>}
+            <Box className="risk-signoff-list">
+              {active.risk_signoffs.required_critical_services.map((required) => {
+                const record = active.risk_signoffs.signoffs.find((item) => item.service_id === required.service_id)
+                const canSign = can('scenario.signoff') && user?.role === 'service_owner' && user.team === required.owner_team
+                return <Box className={`risk-signoff-row ${record?.valid ? 'is-valid' : record ? 'is-invalid' : 'is-pending'}`} key={required.service_id}>
+                  <Box><strong>{required.service_code}</strong><span>{required.service_name} · {required.owner_team} · 关键等级 {required.criticality}</span>{record && <small>签收人：{record.accepted_by_name} · {formatDateTime(record.updated_at)}</small>}{record && <small>绑定哈希：<Fingerprint value={record.input_hash} compact /></small>}</Box>
+                  <Box className="risk-signoff-status">{record?.valid ? <Typography color="success.main">已有效签收</Typography> : <Typography color="warning.main">{required.invalid_reason || record?.invalid_reason || '等待签收'}</Typography>}{canSign && <Button size="small" variant={record ? 'outlined' : 'contained'} disabled={busy} onClick={() => signoffActiveService(required.service_id)}>{record ? '重新签收' : '签收风险'}</Button>}{!canSign && !record?.valid && <Typography variant="caption">仅 {required.owner_team} 的服务负责人可签收</Typography>}</Box>
+                </Box>
+              })}
+            </Box>
+          </Box>}
           <Box className="scenario-toolbar">
             {active.scenario_state === 'draft' && can('scenario.run') && <Button variant="contained" startIcon={<PlayArrowRounded />} disabled={simulation.runningId === active.id} onClick={() => runSimulation(active)}>{simulation.runningId === active.id ? '正在推演…' : '运行离线推演'}</Button>}
             {canAdvance && !reviewerConflict && <Button variant="contained" startIcon={next?.to === 'verified' ? <FactCheckRounded /> : <ArrowForwardRounded />} disabled={busy} onClick={() => next && transitionActive(next.to)}>{next?.label}</Button>}

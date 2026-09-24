@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"pki-certificate-rollover-impact/backend/internal/dto"
 	"pki-certificate-rollover-impact/backend/internal/model"
 	"time"
@@ -18,6 +19,8 @@ type RolloverScenarioRepository interface {
 	CompleteSimulation(context.Context, uint, map[string]any) (bool, error)
 	Transition(context.Context, uint, string, string, map[string]any) (bool, error)
 	SetReplayVerified(context.Context, uint, bool) error
+	ListRiskSignoffsByScenarioIDs(context.Context, []uint) ([]model.ScenarioRiskSignoff, error)
+	UpsertRiskSignoff(context.Context, *model.ScenarioRiskSignoff) error
 }
 type rolloverScenarioRepository struct{ db *gorm.DB }
 
@@ -102,6 +105,31 @@ func (r *rolloverScenarioRepository) SetReplayVerified(ctx context.Context, id u
 	}
 	if result.RowsAffected != 1 {
 		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+func (r *rolloverScenarioRepository) ListRiskSignoffsByScenarioIDs(ctx context.Context, scenarioIDs []uint) ([]model.ScenarioRiskSignoff, error) {
+	signoffs := []model.ScenarioRiskSignoff{}
+	if len(scenarioIDs) == 0 {
+		return signoffs, nil
+	}
+	if err := scopedDB(ctx, r.db).Where("scenario_id IN ?", scenarioIDs).Order("scenario_id ASC, service_id ASC").Find(&signoffs).Error; err != nil {
+		return nil, fmt.Errorf("list scenario risk signoffs: %w", err)
+	}
+	return signoffs, nil
+}
+func (r *rolloverScenarioRepository) UpsertRiskSignoff(ctx context.Context, signoff *model.ScenarioRiskSignoff) error {
+	now := time.Now().UTC()
+	signoff.UpdatedAt = now
+	if signoff.CreatedAt.IsZero() {
+		signoff.CreatedAt = now
+	}
+	err := scopedDB(ctx, r.db).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "scenario_id"}, {Name: "service_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"service_code", "owner_team", "input_hash", "accepted_by", "accepted_by_name", "comment", "updated_at"}),
+	}).Create(signoff).Error
+	if err != nil {
+		return fmt.Errorf("upsert scenario risk signoff: %w", err)
 	}
 	return nil
 }

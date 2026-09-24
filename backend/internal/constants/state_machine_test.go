@@ -47,6 +47,12 @@ func TestRBACLeastPrivilege(t *testing.T) {
 	if !HasPermission(RoleServiceOwner, PermissionDependencyWrite) {
 		t.Fatal("service owner should maintain owned dependencies")
 	}
+	if !HasPermission(RoleServiceOwner, PermissionScenarioSignoff) {
+		t.Fatal("service owner should accept risk for owned critical services")
+	}
+	if HasPermission(RoleAdmin, PermissionScenarioSignoff) {
+		t.Fatal("administrators must not bypass the responsible team lead signoff")
+	}
 	if HasPermission(RoleServiceOwner, PermissionScenarioVerify) {
 		t.Fatal("service owner must not verify scenarios")
 	}

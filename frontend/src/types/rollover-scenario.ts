@@ -9,9 +9,48 @@ export interface AffectedService {
   not_after?: string
   service_id?: number
   service_code?: string
+  service_name?: string
+  owner_team?: string
   criticality?: string
   at?: string
   reason?: string
+}
+
+export interface RiskSignoffRequirement {
+  service_id: number
+  service_code: string
+  service_name: string
+  owner_team: string
+  criticality: string
+  signed: boolean
+  valid: boolean
+  invalid_reason: string
+}
+
+export interface RiskSignoff {
+  id: number
+  service_id: number
+  service_code: string
+  service_name: string
+  owner_team: string
+  criticality: string
+  input_hash: string
+  accepted_by: number
+  accepted_by_name: string
+  comment: string
+  valid: boolean
+  invalid_reason: string
+  created_at: string
+  updated_at: string
+}
+
+export interface RiskSignoffSummary {
+  required: boolean
+  ready: boolean
+  pending_service_ids: number[]
+  invalid_service_ids: number[]
+  required_critical_services: RiskSignoffRequirement[]
+  signoffs: RiskSignoff[]
 }
 
 export interface BrokenPath {
@@ -60,8 +99,14 @@ export interface RolloverScenario {
   replay_verified: boolean
   duration_ms: number
   rollback_record: string
+  risk_signoffs: RiskSignoffSummary
   created_at: string
   updated_at: string
+}
+
+export interface RiskSignoffInput {
+  service_id: number
+  comment?: string
 }
 
 export interface CreateRolloverScenarioInput {

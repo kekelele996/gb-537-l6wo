@@ -87,7 +87,7 @@ func newScenarioTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.AutoMigrate(&model.TrustAnchor{}, &model.RolloverScenario{}, &model.AuditLog{}); err != nil {
+	if err := db.AutoMigrate(&model.TrustAnchor{}, &model.DependentService{}, &model.RolloverScenario{}, &model.ScenarioRiskSignoff{}, &model.AuditLog{}); err != nil {
 		t.Fatal(err)
 	}
 	return db

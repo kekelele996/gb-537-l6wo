@@ -375,6 +375,8 @@ button, input, textarea, select { letter-spacing: 0; }
   .scenario-evidence-grid > div { min-height: 68px; border-right: 0; border-bottom: 1px solid var(--mineral-3); }
   .scenario-evidence-grid > div:last-child { border-bottom: 0; }
   .scenario-toolbar .MuiButton-root { width: 100%; }
+  .risk-signoff-row { align-items: flex-start; flex-direction: column; }
+  .risk-signoff-status { align-items: stretch; width: 100%; }
   .form-grid { grid-template-columns: 1fr; }
   .drawer-header { padding: 18px 16px; }
   .drawer-body { padding: 18px 16px 28px; }
@@ -389,6 +391,21 @@ button, input, textarea, select { letter-spacing: 0; }
   .login-form-zone { min-height: 590px; padding: 36px 20px; }
   .login-form h2 { font-size: 1.5rem; }
 }
+
+.risk-signoff-panel { display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid var(--mineral-3); background: var(--mineral-0); }
+.risk-signoff-panel.is-pending { border-left: 4px solid var(--amber); }
+.risk-signoff-panel.is-complete { border-left: 4px solid var(--green); }
+.risk-signoff-head { display: flex; justify-content: space-between; gap: 16px; }
+.risk-signoff-head h3 { margin: 3px 0 5px; font-size: 1.02rem; }
+.risk-signoff-head p { color: var(--ink-soft); font-size: .8rem; line-height: 1.5; }
+.risk-signoff-list { display: grid; gap: 10px; }
+.risk-signoff-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 13px; border: 1px solid var(--mineral-2); background: #fff; }
+.risk-signoff-row.is-valid { border-left: 4px solid var(--green); }
+.risk-signoff-row.is-invalid, .risk-signoff-row.is-pending { border-left: 4px solid var(--amber); }
+.risk-signoff-row > div:first-child { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.risk-signoff-row strong { font-size: .92rem; }
+.risk-signoff-row span, .risk-signoff-row small { color: var(--ink-soft); font-size: .75rem; overflow-wrap: anywhere; }
+.risk-signoff-status { display: flex; flex: 0 0 auto; flex-direction: column; align-items: flex-end; gap: 7px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }

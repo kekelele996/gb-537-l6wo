@@ -17,6 +17,7 @@ type DependentServiceRepository interface {
 	Update(context.Context, uint, map[string]any) error
 	Deactivate(context.Context, uint) (bool, error)
 	All(context.Context) ([]model.DependentService, error)
+	GetByIDs(context.Context, []uint) ([]model.DependentService, error)
 }
 type dependentServiceRepository struct{ db *gorm.DB }
 
@@ -88,6 +89,16 @@ func (r *dependentServiceRepository) All(ctx context.Context) ([]model.Dependent
 	var services []model.DependentService
 	if err := scopedDB(ctx, r.db).Preload("Chain").Preload("Chain.TrustAnchor").Order("id ASC").Find(&services).Error; err != nil {
 		return nil, fmt.Errorf("load dependency graph: %w", err)
+	}
+	return services, nil
+}
+func (r *dependentServiceRepository) GetByIDs(ctx context.Context, ids []uint) ([]model.DependentService, error) {
+	services := []model.DependentService{}
+	if len(ids) == 0 {
+		return services, nil
+	}
+	if err := scopedDB(ctx, r.db).Where("id IN ?", ids).Order("id ASC").Find(&services).Error; err != nil {
+		return nil, fmt.Errorf("find dependent services by ids: %w", err)
 	}
 	return services, nil
 }

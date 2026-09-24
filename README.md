@@ -67,7 +67,7 @@ Authentication is available through `POST /api/v1/auth/login`. All write endpoin
 - backend DTOs, services, routers, and state-machine tests
 - `frontend/src/types/enums/scenario-state.ts`, stores, state badges, and rollover page
 
-Valid scenario transitions are `draft -> simulated -> ready -> executing -> verified`, `executing -> rollback`, and `simulated/ready -> draft`. Invalid transitions return `409`; a creator attempting to verify their own scenario receives `409 REVIEWER_SEPARATION_REQUIRED`. Authorization failures return `403`, and unauthenticated requests return `401`.
+Valid scenario transitions are `draft -> simulated -> ready -> executing -> verified`, `executing -> rollback`, and `simulated/ready -> draft`. After simulation, every affected **critical** service must have a current risk acceptance from that service's own team lead; each acceptance is bound to the scenario's frozen `input_hash`, repeated submissions for the same scenario/service upsert one record, and stale, cross-team, or missing acceptances keep the scenario out of `ready` with a `409 RISK_SIGNOFF_REQUIRED`. Invalid transitions return `409`; a creator attempting to verify their own scenario receives `409 REVIEWER_SEPARATION_REQUIRED`. Authorization failures return `403`, and unauthenticated requests return `401`.
 
 ## Configuration and ports
 

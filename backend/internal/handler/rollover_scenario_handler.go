@@ -88,6 +88,19 @@ func (h *RolloverScenarioHandler) Transition(c *gin.Context) {
 	result, serviceErr := h.service.Transition(c.Request.Context(), id, request, actor, util.RequestID(c))
 	respond(c, http.StatusOK, result, serviceErr)
 }
+func (h *RolloverScenarioHandler) SignoffRisk(c *gin.Context) {
+	id, err := util.ParseUintParam(c, "id")
+	if err != nil {
+		util.Fail(c, err)
+		return
+	}
+	var request dto.ScenarioRiskSignoffRequest
+	if !bindJSON(c, &request) {
+		return
+	}
+	result, serviceErr := h.service.SignoffRisk(c.Request.Context(), id, request, mustActor(c), util.RequestID(c))
+	respond(c, http.StatusOK, result, serviceErr)
+}
 func (h *RolloverScenarioHandler) Replay(c *gin.Context) {
 	id, err := util.ParseUintParam(c, "id")
 	if err != nil {

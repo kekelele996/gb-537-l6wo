@@ -15,8 +15,10 @@ describe('RBAC visibility mapping', () => {
 
   it('limits service owners to dependency and scenario workflows', () => {
     expect(can(actor('service_owner'), 'dependency.write')).toBe(true)
+    expect(can(actor('service_owner'), 'scenario.signoff')).toBe(true)
     expect(can(actor('service_owner'), 'anchor.write')).toBe(false)
     expect(can(actor('service_owner'), 'audit.read')).toBe(false)
+    expect(can(actor('admin'), 'scenario.signoff')).toBe(false)
   })
 })
 
